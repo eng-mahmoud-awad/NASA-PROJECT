@@ -11,13 +11,13 @@ interface RocketLaunchLoaderProps {
 
 type LaunchPhase = "calibrating" | "ignition" | "liftoff" | "completed";
 
-const TELEMETRY_STEPS = [
-  "CONNECTING TO ESP32 BIO-TELEMETRY NODE...",
-  "CALIBRATING MAX30102 (HR & SpO2) OPTICAL SENSORS...",
-  "VERIFYING SCD40 CABIN CO2 & THERMAL SENSORS...",
-  "LOADING ENVIRONMENT RISK ENGINE & CREW PROFILES...",
-  "MAIN ENGINE IGNITION — ALL VITALS NOMINAL. LIFTOFF!",
-];
+// const TELEMETRY_STEPS = [
+//   "CONNECTING TO ESP32 BIO-TELEMETRY NODE...",
+//   "CALIBRATING MAX30102 (HR & SpO2) OPTICAL SENSORS...",
+//   "VERIFYING SCD40 CABIN CO2 & THERMAL SENSORS...",
+//   "LOADING ENVIRONMENT RISK ENGINE & CREW PROFILES...",
+//   "MAIN ENGINE IGNITION — ALL VITALS NOMINAL. LIFTOFF!",
+// ];
 
 export default function RocketLaunchLoader({
   duration = 3800,
@@ -60,10 +60,10 @@ export default function RocketLaunchLoader({
 
   if (!isVisible) return null;
 
-  const currentStepIndex = Math.min(
-    TELEMETRY_STEPS.length - 1,
-    Math.floor((progress / 100) * TELEMETRY_STEPS.length)
-  );
+//   const currentStepIndex = Math.min(
+//     TELEMETRY_STEPS.length - 1,
+//     Math.floor((progress / 100) * TELEMETRY_STEPS.length)
+//   );
 
   return (
     <div
@@ -125,7 +125,7 @@ export default function RocketLaunchLoader({
       </div>
 
       {/* Top Mission Header */}
-      <div className="relative z-10 mt-10 flex flex-col items-center gap-1 text-center">
+      {/* <div className="relative z-10 mt-10 flex flex-col items-center gap-1 text-center">
         <div className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-mono tracking-widest text-emerald-400">
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
           NASA SPACE APPS // ASTRO-VITALS OS
@@ -133,7 +133,7 @@ export default function RocketLaunchLoader({
         <h1 className="mt-2 text-xl font-bold tracking-wider text-slate-200 sm:text-2xl">
           CREW HEALTH TELEMETRY SYSTEM
         </h1>
-      </div>
+      </div> */}
 
       {/* Center Rocket & Launchpad Stage */}
       <div className="relative z-10 flex flex-col items-center justify-center my-auto">
@@ -282,23 +282,23 @@ export default function RocketLaunchLoader({
 
       {/* Bottom Telemetry Console & Progress Bar */}
       <div className="relative z-10 mb-12 w-full max-w-md px-6">
-        <div className="mb-2 flex items-center justify-between font-mono text-xs">
+        {/* <div className="mb-2 flex items-center justify-between font-mono text-xs">
           <span className="text-cyan-400 truncate pr-2">
             {TELEMETRY_STEPS[currentStepIndex]}
           </span>
           <span className="font-bold text-emerald-400">{progress}%</span>
-        </div>
+        </div> */}
 
         {/* Progress Bar Track */}
-        <div className="h-2.5 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-900/90 p-0.5">
+        {/* <div className="h-2.5 w-full overflow-hidden rounded-full border border-slate-800 bg-slate-900/90 p-0.5">
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-amber-400 transition-all duration-100 ease-out shadow-[0_0_12px_rgba(16,185,129,0.7)]"
             style={{ width: `${progress}%` }}
           />
-        </div>
+        </div> */}
 
         {/* Sensor Check Badges */}
-        <div className="mt-3 grid grid-cols-4 gap-2 text-center font-mono text-[10px]">
+        {/* <div className="mt-3 grid grid-cols-4 gap-2 text-center font-mono text-[10px]">
           <div
             className={`rounded border py-1 transition-colors ${
               progress > 20
@@ -334,8 +334,8 @@ export default function RocketLaunchLoader({
             }`}
           >
             IGNITION
-          </div>
-        </div>
+          </div> 
+        </div> */}
       </div>
     </div>
   );
