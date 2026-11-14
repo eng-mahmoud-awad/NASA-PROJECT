@@ -26,6 +26,22 @@ export type DemoScenario =
   | "eva_hypoxia"
   | "fluid_shift_bp";
 
+export type VexGuideMode =
+  | "story_campaign"
+  | "section_tutorial"
+  | "live_guardian"
+  | "measure_coach"
+  | "drill_instructor";
+
+export type WebsiteSectionId =
+  | "mission-header"
+  | "vex-bridge"
+  | "vitals"
+  | "trend"
+  | "sensor-map"
+  | "crew-log-link"
+  | "countermeasures";
+
 export interface VitalsSnapshot {
   timestamp: string;
   hr: number; // Heart Rate (BPM) - ESP32 Live Sensor
@@ -88,7 +104,18 @@ interface HealthStoreState {
   quests: HealthQuest[];
   badges: CrewBadge[];
 
+  // Commander Vex (Main Character Storytelling & Website Section Tutorial)
+  vexMode: VexGuideMode;
+  storyChapterIdx: number;
+  tutorialActive: boolean;
+  tutorialStepIdx: number;
+
   // Actions
+  setVexMode: (mode: VexGuideMode) => void;
+  setStoryChapterIdx: (idx: number) => void;
+  startSectionTutorial: (stepIdx?: number) => void;
+  setTutorialStepIdx: (stepIdx: number) => void;
+  stopSectionTutorial: () => void;
   setEnvironment: (env: MissionEnvironment) => void;
   setEsp32Ip: (ip: string) => void;
   updateEsp32Telemetry: (data: {
@@ -228,6 +255,35 @@ export const useHealthStore = create<HealthStoreState>()(
         readinessScore: computeReadinessScore(initialEvals, INITIAL_QUESTS),
         quests: INITIAL_QUESTS,
         badges: INITIAL_BADGES,
+
+        vexMode: "story_campaign",
+        storyChapterIdx: 0,
+        tutorialActive: false,
+        tutorialStepIdx: 0,
+
+        setVexMode: (mode) =>
+          set((state) => ({
+            vexMode: mode,
+            tutorialActive: mode === "section_tutorial" ? true : state.tutorialActive,
+          })),
+        setStoryChapterIdx: (idx) => set({ storyChapterIdx: idx }),
+        startSectionTutorial: (stepIdx = 0) =>
+          set({
+            vexMode: "section_tutorial",
+            tutorialActive: true,
+            tutorialStepIdx: stepIdx,
+          }),
+        setTutorialStepIdx: (stepIdx) =>
+          set({
+            vexMode: "section_tutorial",
+            tutorialActive: true,
+            tutorialStepIdx: stepIdx,
+          }),
+        stopSectionTutorial: () =>
+          set((state) => ({
+            tutorialActive: false,
+            vexMode: state.vexMode === "section_tutorial" ? "story_campaign" : state.vexMode,
+          })),
 
         // Switch Mission Environment (Spacecraft, Station, Rover, Base)
         setEnvironment: (env) => {

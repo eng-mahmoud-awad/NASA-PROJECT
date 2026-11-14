@@ -12,7 +12,7 @@ export interface Esp32RawPayload {
  * Uses the local Next.js proxy (/api/esp32) to bypass browser CORS issues.
  */
 // Inside lib/esp32Client.ts -> replace fetchEsp32Telemetry with this:
-export async function fetchEsp32Telemetry(): Promise<Esp32RawPayload> {
+export async function fetchEsp32Telemetry(_ip?: string): Promise<Esp32RawPayload> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2000);
 

@@ -1,15 +1,21 @@
 "use client";
 
 import React from "react";
-import { Trophy, CheckSquare, Square, Flame, Award } from "lucide-react";
+import { CheckSquare, Square } from "lucide-react";
 import { useHealthStore, MetricKey } from "@/store/useHealthStore";
 import { METRIC_GUIDES } from "@/lib/medicalGuides";
 import { getStatusTheme, cn } from "@/lib/utils";
+import { Panel, Segmented } from "@/components/ui";
+import VexSectionBanner from "@/components/VexSectionBanner";
 
 interface LiveChartAndQuestsProps {
   selectedMetric: MetricKey;
   onSelectMetric: (key: MetricKey) => void;
 }
+
+const KEYS: MetricKey[] = ["hr", "spo2", "temp", "bp", "glo", "co2"];
+const W = 500;
+const H = 150;
 
 export default function LiveChartAndQuests({
   selectedMetric,
@@ -27,220 +33,248 @@ export default function LiveChartAndQuests({
   } = useHealthStore();
 
   const guide = METRIC_GUIDES[selectedMetric];
-  const theme = getStatusTheme(evaluations[selectedMetric].status);
+  const ev = evaluations[selectedMetric];
+  const theme = getStatusTheme(ev.status);
   const { minDomain, maxDomain, safeMin, safeMax } = guide.chartConfig;
 
-  // Map history points to SVG coordinates (width: 500, height: 150)
-  const W = 500;
-  const H = 150;
+  const yOf = (v: number) =>
+    H - ((v - minDomain) / (maxDomain - minDomain)) * (H - 24) - 12;
+
   const points = history.map((snap, idx) => {
     const val =
       selectedMetric === "bp" ? snap.bpSys : (snap[selectedMetric] as number);
     const x =
-      history.length > 1 ? (idx / (history.length - 1)) * (W - 20) + 10 : W / 2;
-    const clamped = Math.max(minDomain, Math.min(maxDomain, val));
-    const y =
-      H - ((clamped - minDomain) / (maxDomain - minDomain)) * (H - 24) - 12;
-    return { x, y, val, time: snap.timestamp };
+      history.length > 1
+        ? (idx / (history.length - 1)) * (W - 20) + 10
+        : W / 2;
+    return { x, y: yOf(Math.max(minDomain, Math.min(maxDomain, val))), val };
   });
 
-  const polylinePoints = points.map((p) => `${p.x},${p.y}`).join(" ");
-  const areaPoints =
+  const line = points.map((p) => `${p.x},${p.y}`).join(" ");
+  const area =
     points.length > 1
-      ? `${points[0].x},${H} ${polylinePoints} ${points[points.length - 1].x},${H}`
+      ? `${points[0].x},${H} ${line} ${points[points.length - 1].x},${H}`
       : "";
+  const safeTopY = yOf(safeMax);
+  const safeBottomY = yOf(safeMin);
+  const latest = points.length ? points[points.length - 1].val : null;
 
-  const safeTopY =
-    H - ((safeMax - minDomain) / (maxDomain - minDomain)) * (H - 24) - 12;
-  const safeBottomY =
-    H - ((safeMin - minDomain) / (maxDomain - minDomain)) * (H - 24) - 12;
+  const done = quests.filter((q) => q.completed).length;
+  const levelPct = Math.min(100, Math.round(((xp % 150) / 150) * 100));
+
+  const outOfBand =
+    latest !== null && (latest < safeMin || latest > safeMax);
+  const pendingQuest = quests.find((q) => !q.completed);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-      {/* Left 7 Cols: Interactive Dynamic Waveform Chart */}
-      <div className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-4 lg:col-span-7">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <span className="font-mono text-[10px] uppercase text-cyan-400">
-              REAL-TIME TELEMETRY WAVEFORM
-            </span>
-            <h3 className="text-sm font-bold text-white">
-              {guide.title} ({guide.unit})
-            </h3>
-          </div>
+    <div className="space-y-2.5">
+      <VexSectionBanner
+        sectionId="trend"
+        sectionBadge="SECTION 04 · TREND WAVEFORM & CREW READINESS TASKS"
+        status={ev.status}
+        storyNote={`Tracking last ${history.length} samples of ${guide.title} against NASA's [${safeMin}–${safeMax} ${guide.unit}] safe band`}
+        instruction={
+          pendingQuest
+            ? `Keep ${guide.shortTitle} inside the shaded green corridor on the left, then check off "${pendingQuest.title}" (+${pendingQuest.xpReward} XP) on the right.`
+            : `All ${quests.length} daily crew tasks completed! Use the metric switcher on the chart to verify all 6 trend lines.`
+        }
+        warning={
+          outOfBand
+            ? `${guide.shortTitle} (${latest} ${guide.unit}) has exited the safe corridor [${safeMin}–${safeMax}]! ${ev.actions[0]}`
+            : `If the waveform slopes steadily toward the dashed safe boundary (${safeMin} or ${safeMax} ${guide.unit}), act before an alarm sounds.`
+        }
+      />
 
-          {/* Quick Metric Switcher Tabs */}
-          <div className="flex gap-1 rounded-lg bg-slate-950 p-1">
-            {(["hr", "spo2", "temp", "bp", "glo", "co2"] as MetricKey[]).map(
-              (k) => (
-                <button
-                  key={k}
-                  onClick={() => onSelectMetric(k)}
-                  className={cn(
-                    "rounded px-2 py-1 font-mono text-[10px] font-bold uppercase transition",
-                    selectedMetric === k
-                      ? "bg-cyan-500 text-slate-950"
-                      : "text-slate-400 hover:text-white"
-                  )}
-                >
-                  {k}
-                </button>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* SVG Chart with Nominal Safe Band */}
-        <div className="relative my-3 w-full overflow-hidden rounded-xl border border-slate-800/80 bg-slate-950/90 p-2">
-          <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full overflow-visible">
-            {/* Green Nominal Safe Zone Band */}
-            <rect
-              x="0"
-              y={safeTopY}
-              width={W}
-              height={Math.max(4, safeBottomY - safeTopY)}
-              fill="#10b981"
-              fillOpacity="0.08"
-            />
-            <line
-              x1="0"
-              y1={safeTopY}
-              x2={W}
-              y2={safeTopY}
-              stroke="#10b981"
-              strokeDasharray="4 4"
-              strokeOpacity="0.4"
-            />
-            <line
-              x1="0"
-              y1={safeBottomY}
-              x2={W}
-              y2={safeBottomY}
-              stroke="#10b981"
-              strokeDasharray="4 4"
-              strokeOpacity="0.4"
-            />
-
-            {/* Shaded Area under curve */}
-            {points.length > 1 && (
-              <polygon
-                points={areaPoints}
-                fill={theme.hex}
-                fillOpacity="0.16"
-              />
-            )}
-
-            {/* Main Telemetry Line */}
-            {points.length > 1 && (
-              <polyline
-                fill="none"
-                stroke={theme.hex}
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={polylinePoints}
-              />
-            )}
-
-            {/* Data Nodes */}
-            {points.map((pt, i) => (
-              <circle
-                key={i}
-                cx={pt.x}
-                cy={pt.y}
-                r={i === points.length - 1 ? 4.5 : 2.5}
-                fill={theme.hex}
-              />
-            ))}
-          </svg>
-        </div>
-
-        <div className="flex justify-between font-mono text-[11px] text-slate-400">
-          <span>Safe Zone: {guide.normalRangeText}</span>
-          <span>Samples Logged: {history.length}</span>
-        </div>
-      </div>
-
-      {/* Right 5 Cols: Interactive Gamification Quests & Badges */}
-      <div className="flex flex-col justify-between rounded-2xl border border-slate-800 bg-slate-900/70 p-4 lg:col-span-5">
-        {/* Top XP & Level Bar */}
-        <div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-                <Trophy size={16} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <Panel
+          title={`${guide.title}: last ${history.length} readings`}
+          aside={<span>Normal {guide.normalRangeText}</span>}
+          className="lg:col-span-8"
+        >
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-tabular font-mono text-3xl font-semibold text-slate-50">
+                  {latest ?? "—"}
+                </span>
+                <span className="text-sm text-slate-400">{guide.unit}</span>
               </div>
-              <div>
-                <div className="text-xs font-bold text-white">
-                  CREW LEVEL {level}
-                </div>
-                <div className="font-mono text-[10px] text-amber-400">
-                  {xp} XP TOTAL
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-mono text-xs font-bold text-amber-300">
-              <Flame size={13} />
-              <span>{streakDays}d Streak</span>
-            </div>
-          </div>
-
-          {/* Interactive Quests Checklist */}
-          <div className="mt-3 space-y-2">
-            {quests.map((q) => (
-              <button
-                key={q.id}
-                onClick={() => completeQuest(q.id)}
-                disabled={q.completed}
+              <div
                 className={cn(
-                  "flex w-full items-center justify-between rounded-xl border p-2.5 text-left transition",
-                  q.completed
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-slate-400"
-                    : "border-slate-800 bg-slate-950/70 text-slate-200 hover:border-cyan-500/50"
+                  "mt-0.5 flex items-center gap-1.5 text-sm font-medium",
+                  theme.badgeText
                 )}
               >
-                <div className="flex items-center gap-2.5 pr-2">
-                  {q.completed ? (
-                    <CheckSquare size={16} className="shrink-0 text-emerald-400" />
-                  ) : (
-                    <Square size={16} className="shrink-0 text-cyan-400" />
-                  )}
-                  <span
-                    className={cn(
-                      "text-xs font-medium",
-                      q.completed && "line-through"
-                    )}
-                  >
-                    {q.title}
-                  </span>
-                </div>
-                <span className="shrink-0 rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-300">
-                  +{q.xpReward} XP
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Unlockable Crew Badges Strip */}
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
-          {badges.map((b) => (
-            <div
-              key={b.id}
-              title={b.description}
-              className={cn(
-                "flex flex-1 items-center gap-1.5 rounded-lg border px-2 py-1.5 font-mono text-[10px]",
-                b.unlocked
-                  ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                  : "border-slate-800 bg-slate-950/50 text-slate-600"
-              )}
-            >
-              <Award size={13} className="shrink-0" />
-              <span className="truncate font-bold">{b.title}</span>
+                <span className={cn("size-1.5 rounded-full", theme.dot)} />
+                {ev.label}
+              </div>
             </div>
-          ))}
-        </div>
+            <Segmented
+              label="Metric"
+              value={selectedMetric}
+              onChange={onSelectMetric}
+              options={KEYS.map((k) => ({
+                value: k,
+                label: METRIC_GUIDES[k].shortTitle,
+              }))}
+            />
+          </div>
+
+          {points.length < 2 ? (
+            <p className="mt-4 rounded-md border border-slate-800 bg-slate-950 p-6 text-center text-sm text-slate-400">
+              Waiting for readings. The trend draws once a second sample arrives
+              (one every 2 seconds).
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 rounded-md border border-slate-800 bg-slate-950 p-3">
+                <svg
+                  viewBox={`0 0 ${W} ${H}`}
+                  className="h-44 w-full overflow-visible"
+                  role="img"
+                  aria-label={`${guide.title} trend`}
+                >
+                  <rect
+                    x="0"
+                    y={safeTopY}
+                    width={W}
+                    height={Math.max(4, safeBottomY - safeTopY)}
+                    fill="#10b981"
+                    fillOpacity="0.07"
+                  />
+                  <line
+                    x1="0"
+                    y1={safeTopY}
+                    x2={W}
+                    y2={safeTopY}
+                    stroke="#10b981"
+                    strokeDasharray="4 4"
+                    strokeOpacity="0.4"
+                  />
+                  <line
+                    x1="0"
+                    y1={safeBottomY}
+                    x2={W}
+                    y2={safeBottomY}
+                    stroke="#10b981"
+                    strokeDasharray="4 4"
+                    strokeOpacity="0.4"
+                  />
+                  <text
+                    x={W - 2}
+                    y={safeTopY - 3}
+                    textAnchor="end"
+                    className="fill-slate-500 font-mono text-[10px]"
+                  >
+                    {safeMax}
+                  </text>
+                  <text
+                    x={W - 2}
+                    y={safeBottomY + 11}
+                    textAnchor="end"
+                    className="fill-slate-500 font-mono text-[10px]"
+                  >
+                    {safeMin}
+                  </text>
+                  <polygon points={area} fill={theme.hex} fillOpacity="0.1" />
+                  <polyline
+                    fill="none"
+                    stroke={theme.hex}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={line}
+                  />
+                  <circle
+                    cx={points[points.length - 1].x}
+                    cy={points[points.length - 1].y}
+                    r="4"
+                    fill={theme.hex}
+                  />
+                </svg>
+              </div>
+              <div className="mt-2 flex justify-between font-mono text-[11px] text-slate-500">
+                <span>{history[0]?.timestamp}</span>
+                <span>Shaded band = normal range</span>
+                <span>{history[history.length - 1]?.timestamp}</span>
+              </div>
+            </>
+          )}
+        </Panel>
+
+        <Panel
+          title="Crew tasks"
+          aside={`${done} of ${quests.length} done`}
+          className="lg:col-span-4"
+        >
+          <div className="mb-3 text-sm text-slate-300">
+            <div className="flex items-center justify-between">
+              <span>
+                Level {level} · <span className="font-mono">{xp}</span> XP
+              </span>
+              <span className="text-slate-400">{streakDays}-day streak</span>
+            </div>
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-sky-400"
+                style={{ width: `${levelPct}%` }}
+              />
+            </div>
+          </div>
+
+          <ul className="space-y-1.5">
+            {quests.map((q) => (
+              <li key={q.id}>
+                <button
+                  type="button"
+                  onClick={() => completeQuest(q.id)}
+                  disabled={q.completed}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                    q.completed
+                      ? "border-slate-800 text-slate-500"
+                      : "border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-800"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    {q.completed ? (
+                      <CheckSquare size={15} className="shrink-0" />
+                    ) : (
+                      <Square size={15} className="shrink-0" />
+                    )}
+                    <span className={cn(q.completed && "line-through")}>
+                      {q.title}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-slate-400">
+                    +{q.xpReward} XP
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <ul className="mt-4 space-y-1 border-t border-slate-800 pt-3 text-xs">
+            {badges.map((b) => (
+              <li
+                key={b.id}
+                title={b.description}
+                className="flex justify-between gap-2"
+              >
+                <span
+                  className={b.unlocked ? "text-slate-200" : "text-slate-500"}
+                >
+                  {b.title}
+                </span>
+                <span
+                  className={b.unlocked ? "text-slate-300" : "text-slate-600"}
+                >
+                  {b.unlocked ? "Unlocked" : "Locked"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       </div>
     </div>
   );
